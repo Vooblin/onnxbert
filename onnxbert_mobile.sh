@@ -21,21 +21,10 @@ yes | ./tools/bin/sdkmanager $FLAGS "ndk;21.0.6113669" "platform-tools"
 
 cd $cur_dir
 
-if [ ! -d "cmake-3.16.5" ]
+if [ ! -d "sltbench" ]
 then
-  wget "https://github.com/Kitware/CMake/releases/download/v3.16.5/cmake-3.16.5.tar.gz"
-  tar -xf "cmake-3.16.5.tar.gz"
-  rm "cmake-3.16.5.tar.gz"
+    git clone --recursive "https://github.com/ivafanas/sltbench.git"
 fi
-cd "cmake-3.16.5"
-if [ ! -d "bin" ]
-then
-  ./bootstrap -- -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_USE_OPENSSL=OFF
-  sudo make
-  sudo make install
-fi
-
-cd $cur_dir
 
 if [ ! -d "onnxruntime" ]
 then
@@ -46,7 +35,7 @@ git submodule update --recursive
 
 if [ ! -d "build" ]
 then
-  ./build.sh --android --android_sdk_path "$cur_dir/Android/Sdk" --android_ndk_path "$cur_dir/Android/Sdk/ndk/21.0.6113669" --android_abi "arm64-v8a" --android_api 24
+  ./build.sh --android --android_sdk_path "$cur_dir/Android/Sdk" --android_ndk_path "$cur_dir/Android/Sdk/ndk/21.0.6113669" --android_abi "arm64-v8a" --android_api 24 --config MinSizeRel
 fi
 
 cd $cur_dir
@@ -56,14 +45,16 @@ if [ ! -d "bert" ]
 then
   mkdir -p bert
   cd bert
+  wget "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-config.json"
   wget "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json"
-  wget "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-pytorch_model.bin"
-  mv "bert-base-uncased-pytorch_model.bin" "pytorch_model.bin"
   cd $cur_dir
 fi
 python3 get_bert.py
-python3 "./onnxruntime/onnxruntime/python/tools/bert/bert_model_optimization.py" --input "./bert/torch.onnx" --output "./bert/torch_opt.onnx" --model_type bert --num_heads 12 --hidden_size 768 --sequence_length 128
+python3 "./onnxruntime/onnxruntime/python/tools/bert/bert_model_optimization.py" --input "./bert/torch.onnx" --output "./bert/torch_opt.onnx" --model_type bert --num_heads 16 --hidden_size 1024 --sequence_length 128
 
-mkdir -p build
-cd build
-cmake ..
+rm $cur_dir/build -r
+mkdir -p $cur_dir/build
+cd $cur_dir/build
+cmake .. -DCMAKE_TOOLCHAIN_FILE="$cur_dir/Android/Sdk/ndk/21.0.6113669/build/cmake/android.toolchain.cmake" -DANDROID_ABI="arm64-v8a" -DANDROID_NATIVE_API_LEVEL=24
+make
+$cur_dir/Android/Sdk/ndk/21.0.6113669/toolchains/llvm/prebuilt/linux-x86_64/aarch64-linux-android/bin/strip $cur_dir/build/onnx_model

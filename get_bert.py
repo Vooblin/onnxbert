@@ -1,9 +1,9 @@
 from transformers import *
 import torch
 
-config = BertConfig.from_json_file('./bert/bert-base-uncased-config.json')
+config = BertConfig.from_json_file('./bert/bert-large-uncased-config.json')
 model_path = "./bert/"
-model = BertModel.from_pretrained(model_path, config=config)
+model = BertModel(config)
 model.eval()
 device = torch.device("cpu")
 model.to(device)
