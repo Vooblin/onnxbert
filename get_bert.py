@@ -1,7 +1,7 @@
 from transformers import *
 import torch
 
-config = BertConfig.from_json_file('./bert/bert-large-uncased-config.json')
+config = BertConfig.from_json_file('./bert/bert-base-uncased-config.json')
 model_path = "./bert/"
 model = BertModel(config)
 model.eval()
