@@ -1,0 +1,6 @@
+[submodule "thirdparty/sltbench"]
+	path = thirdparty/sltbench
+	url = https://github.com/ivafanas/sltbench.git
+[submodule "thirdparty/onnxruntime"]
+	path = thirdparty/onnxruntime
+	url = https://github.com/microsoft/onnxruntime.git

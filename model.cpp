@@ -7,31 +7,6 @@
 
 #include <Bench.h>
 
-class BertOptFixture
-{
-public:
-	typedef Ort::Session Type;
-
-    BertOptFixture() {
-        Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "test");
-        Ort::SessionOptions session_options;
-        session_options.SetIntraOpNumThreads(1);
-        session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        const char* model_path = "/data/local/tmp/torch_opt.onnx";
-        session.push_back(Ort::Session(env, model_path, session_options));
-    }
-
-	Type& SetUp()
-	{
-		return session[0];
-	}
-
-	void TearDown() {}
-
-private:
-    std::vector<Ort::Session> session;
-};
-
 class BertFixture
 {
 public:
@@ -40,9 +15,9 @@ public:
     BertFixture() {
         Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "test");
         Ort::SessionOptions session_options;
-        session_options.SetIntraOpNumThreads(1);
+        session_options.SetIntraOpNumThreads(8);
         session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        const char* model_path = "/data/local/tmp/torch.onnx";
+        const char* model_path = "/data/local/tmp/bert_base.ort";
         session.push_back(Ort::Session(env, model_path, session_options));
     }
 
@@ -82,7 +57,7 @@ void bert_benchmark(BertFixture::Type& session) {
     output_node_dims = tensor_info.GetShape();
   }
   const int batch_size = 1;
-  const int max_seq_length = 128;
+  const int max_seq_length = 512;
   typedef long ttype;
   size_t input_1_tensor_size = batch_size * max_seq_length;
   size_t input_2_tensor_size = batch_size * max_seq_length;
@@ -108,6 +83,5 @@ void bert_benchmark(BertFixture::Type& session) {
 }
 
 SLTBENCH_FUNCTION_WITH_FIXTURE(bert_benchmark, BertFixture)
-SLTBENCH_FUNCTION_WITH_FIXTURE(bert_benchmark, BertOptFixture)
 
 SLTBENCH_MAIN()

@@ -2,59 +2,53 @@
 
 set -e -x
 
-cur_dir="$(dirname $(readlink -f $0))"
-cd $cur_dir
+PROJECT_DIR="$(dirname $(readlink -f $0))"
+cd $PROJECT_DIR
+git submodule update --init
 
-mkdir -p "./Android/Sdk"
-cd "./Android/Sdk"
+mkdir -p $PROJECT_DIR/thirdparty/Android/Sdk
+cd $PROJECT_DIR/thirdparty/Android/Sdk
 
-if [ ! -d "tools" ]
+if [ ! -d tools ]
 then
-  wget "https://dl.google.com/android/repository/commandlinetools-linux-6200805_latest.zip"
-  unzip "commandlinetools-linux-6200805_latest.zip"
-  rm "commandlinetools-linux-6200805_latest.zip"
+  wget https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+  unzip commandlinetools-linux-6609375_latest.zip
+  rm commandlinetools-linux-6609375_latest.zip
 fi
 
-FLAGS="--sdk_root=."
-
-yes | ./tools/bin/sdkmanager $FLAGS "ndk;21.0.6113669" "platform-tools"
-
-cd $cur_dir
-
-if [ ! -d "sltbench" ]
+if [ ! -d platform-tools ]
 then
-    git clone --recursive "https://github.com/ivafanas/sltbench.git"
+  FLAGS=--sdk_root=.
+
+  yes | ./tools/bin/sdkmanager $FLAGS "ndk;21.3.6528147" platform-tools
 fi
 
-if [ ! -d "onnxruntime" ]
-then
-  git clone --recursive "https://github.com/microsoft/onnxruntime.git"
-fi
-cd onnxruntime
-git submodule update --recursive
+cd $PROJECT_DIR/thirdparty
 
-if [ ! -d "build" ]
+if [ ! -d cmake ]
 then
-  ./build.sh --android --android_sdk_path "$cur_dir/Android/Sdk" --android_ndk_path "$cur_dir/Android/Sdk/ndk/21.0.6113669" --android_abi "arm64-v8a" --android_api 24 --config MinSizeRel
+  wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.tar.gz
+  tar -xf cmake-3.18.4-Linux-x86_64.tar.gz
+  rm cmake-3.18.4-Linux-x86_64.tar.gz
+  mv cmake-3.18.4-Linux-x86_64 cmake
 fi
 
-cd $cur_dir
+ANDROID_HOME=$PROJECT_DIR/thirdparty/Android/Sdk
+NDK_HOME=$ANDROID_HOME/ndk/21.3.6528147
+PATH=$PROJECT_DIR/thirdparty/cmake/bin:$PATH
 
-pip3 install "torch==1.4.0+cpu" "torchvision==0.5.0+cpu" -f "https://download.pytorch.org/whl/torch_stable.html"
-if [ ! -d "bert" ]
-then
-  mkdir -p bert
-  cd bert
-  wget "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-config.json"
-  wget "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json"
-  cd $cur_dir
-fi
-python3 get_bert.py
-python3 "./onnxruntime/onnxruntime/python/tools/bert/bert_model_optimization.py" --input "./bert/torch.onnx" --output "./bert/torch_opt.onnx" --model_type bert --num_heads 16 --hidden_size 1024 --sequence_length 128
+cd $PROJECT_DIR
 
-rm $cur_dir/build -r
-mkdir -p $cur_dir/build
-cd $cur_dir/build
-cmake .. -DCMAKE_TOOLCHAIN_FILE="$cur_dir/Android/Sdk/ndk/21.0.6113669/build/cmake/android.toolchain.cmake" -DANDROID_ABI="arm64-v8a" -DANDROID_NATIVE_API_LEVEL=24
+python3 $PROJECT_DIR/get_bert.py --size tiny
+python3 $PROJECT_DIR/get_bert.py --size base
+
+python3 $PROJECT_DIR/thirdparty/onnxruntime/tools/python/convert_onnx_models_to_ort.py $PROJECT_DIR/bert
+
+$PROJECT_DIR/thirdparty/onnxruntime/build.sh --android --android_sdk_path $ANDROID_HOME --android_ndk_path $NDK_HOME --android_abi arm64-v8a --android_api 29 --config=MinSizeRel --build_shared_lib --android_cpp_shared --minimal_build --disable_ml_ops --disable_exceptions --include_ops_by_config $PROJECT_DIR/bert/required_operators.config --parallel --use_openmp
+
+rm $PROJECT_DIR/build -r
+mkdir -p $PROJECT_DIR/build
+cd $PROJECT_DIR/build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$NDK_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI="arm64-v8a" -DANDROID_NATIVE_API_LEVEL=29
 make
-$cur_dir/Android/Sdk/ndk/21.0.6113669/toolchains/llvm/prebuilt/linux-x86_64/aarch64-linux-android/bin/strip $cur_dir/build/onnx_model
+$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/aarch64-linux-android/bin/strip $PROJECT_DIR/build/onnx_model
